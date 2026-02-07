@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>울릉도 독도문방구 배송 예보</title>
+    <title>울릉도 독도문방구 배송 예측</title>
     <style>
         body {
             background-color: #0f172a;
@@ -22,36 +22,50 @@
             background: #1e293b;
             padding: 30px;
             border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
             text-align: center;
         }
-        h1 { color: #38bdf8; margin-bottom: 10px; font-size: 1.5rem; }
-        .date { color: #94a3b8; font-size: 0.9rem; margin-bottom: 30px; }
+        h1 { color: #38bdf8; margin-bottom: 5px; font-size: 1.6rem; }
+        .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px; }
         
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        .card {
-            background: #334155;
-            padding: 20px;
+        .delivery-box {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            padding: 25px;
             border-radius: 15px;
-        }
-        .label { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 5px; }
-        .value { font-size: 1.8rem; font-weight: bold; }
-        .unit { font-size: 1rem; color: #94a3b8; }
-
-        .status-box {
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
             transition: all 0.3s ease;
         }
-        .status-good { background: #064e3b; border: 2px solid #34d399; color: #d1fae5; }
-        .status-bad { background: #7f1d1d; border: 2px solid #f87171; color: #fecaca; }
-        
+        /* 주말 때문에 늦어지면 색상을 주황색으로 변경 */
+        .delivery-box.delayed {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        .delivery-label { font-size: 1rem; color: #e0f2fe; margin-bottom: 5px; }
+        .delivery-date { font-size: 2.2rem; font-weight: 800; color: white; letter-spacing: -1px; }
+        .delivery-note { font-size: 0.95rem; color: #fff; margin-top: 10px; font-weight: 500;}
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        .forecast-card {
+            background: #334155;
+            padding: 15px 5px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .f-day { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 5px; font-weight: bold; }
+        .f-status { font-size: 1.5rem; margin-bottom: 5px; }
+        .f-wave { font-size: 0.85rem; color: #94a3b8; }
+        .status-danger { border: 2px solid #f87171; background: #451a1a; }
+
         .message-box {
             background: #1e1e1e;
             border-left: 4px solid #38bdf8;
@@ -60,56 +74,51 @@
             font-size: 0.95rem;
             line-height: 1.6;
             color: #e2e8f0;
+            border-radius: 4px;
         }
+        
         .refresh-btn {
-            background: #38bdf8;
-            color: #0f172a;
-            border: none;
+            background: transparent;
+            border: 1px solid #475569;
+            color: #94a3b8;
             padding: 10px 20px;
             border-radius: 30px;
-            font-weight: bold;
+            font-size: 0.8rem;
             cursor: pointer;
             margin-top: 20px;
-            width: 100%;
         }
-        .refresh-btn:hover { background: #0ea5e9; }
+        .refresh-btn:hover { border-color: #cbd5e1; color: white; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🛳️ 울릉도 독도문방구 배송 예보</h1>
-        <p class="date" id="currentDate">날짜 불러오는 중...</p>
+        <h1>🛳️ 독도문방구 배송 예보</h1>
+        <p class="subtitle">기상청 날씨와 주말 연휴를 고려한 도착일</p>
 
-        <div class="grid">
-            <div class="card">
-                <div class="label">파도 높이 (파고)</div>
-                <div id="waveHeight" class="value">-</div>
-                <span class="unit">m</span>
-            </div>
-            <div class="card">
-                <div class="label">바람 세기 (풍속)</div>
-                <div id="windSpeed" class="value">-</div>
-                <span class="unit">m/s</span>
-            </div>
+        <div id="deliveryBox" class="delivery-box">
+            <div class="delivery-label">오늘 주문하면 예상 도착일은?</div>
+            <div id="arrivalDate" class="delivery-date">계산 중...</div>
+            <div id="delayReason" class="delivery-note">날씨 정보를 불러오고 있습니다 📡</div>
         </div>
 
-        <div id="statusBox" class="status-box status-good">
-            <h2 id="statusTitle" style="margin:0; font-size:1.2rem;">데이터 조회 중...</h2>
-        </div>
+        <div class="forecast-grid" id="forecastGrid"></div>
 
         <div class="message-box">
-            <strong>📢 점장님의 한마디:</strong><br>
-            <span id="managerComment">잠시만 기다려주세요! 바다 날씨를 확인하고 있습니다. 🌊</span>
+            <strong>📢 점장님의 코멘트:</strong><br>
+            <span id="managerComment">울릉도 바다 날씨를 확인하고 있어요. 잠시만 기다려주세요!</span>
         </div>
 
-        <button class="refresh-btn" onclick="fetchWeather()">🔄 날씨 다시 확인하기</button>
+        <button class="refresh-btn" onclick="fetchWeather()">🔄 최신 정보로 새로고침</button>
     </div>
 
     <script>
-        // ▼▼▼ 여기에 인증키를 붙여넣으세요 (따옴표는 지우지 마세요!) ▼▼▼
+        // ▼▼▼ 여기에 인증키를 꼭 넣어주세요! ▼▼▼
         const API_KEY = "8bcfc7f276c871e617e932d9a9bcced7bcdff2df7db491ddca0990e794a712ba"; 
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+        const STANDARD_DELIVERY_DAYS = 3; // 기본 배송일
+        const DANGER_WAVE_HEIGHT = 2.5; // 결항 기준 파고
 
         function getBaseTime() {
             const now = new Date();
@@ -117,16 +126,13 @@
             let hour = now.getHours();
             let baseDate = now.toISOString().slice(0,10).replace(/-/g,"");
             
-            // 발표 시간 계산 (API 제공 시간보다 1시간 전 데이터 사용 안전빵)
             if (hour < 2) {
-                // 전날 23시 데이터
                 const yesterday = new Date(now);
                 yesterday.setDate(now.getDate() - 1);
                 baseDate = yesterday.toISOString().slice(0,10).replace(/-/g,"");
                 return { date: baseDate, time: "2300" };
             }
 
-            // 가장 가까운 과거 시간 찾기
             let baseTime = times.filter(t => t <= hour - 1).pop();
             if (!baseTime) baseTime = 23; 
             
@@ -135,51 +141,120 @@
 
         async function fetchWeather() {
             const { date, time } = getBaseTime();
-            document.getElementById('currentDate').innerText = `${date.slice(0,4)}년 ${date.slice(4,6)}월 ${date.slice(6,8)}일 기준`;
-
-            // 울릉도 좌표 (nx=102, ny=115)
-            const url = `http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${API_KEY}&pageNo=1&numOfRows=100&dataType=JSON&base_date=${date}&base_time=${time}&nx=102&ny=115`;
+            const url = `http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${API_KEY}&pageNo=1&numOfRows=500&dataType=JSON&base_date=${date}&base_time=${time}&nx=102&ny=115`;
 
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 const items = data.response.body.items.item;
-
-                // 파고(WAV)와 풍속(WSD) 찾기
-                const wave = items.find(i => i.category === 'WAV')?.fcstValue || 0;
-                const wind = items.find(i => i.category === 'WSD')?.fcstValue || 0;
-
-                updateUI(parseFloat(wave), parseFloat(wind));
+                analyzeForecast(items);
             } catch (error) {
                 console.error(error);
-                document.getElementById('managerComment').innerText = "⚠️ 기상청 연결이 원활하지 않아요. 잠시 후 다시 시도해주세요! (혹은 API키를 확인해주세요)";
+                document.getElementById('managerComment').innerText = "⚠️ 기상청 연결 실패! 인증키를 확인해주세요.";
+                document.getElementById('arrivalDate').innerText = "오류 발생";
             }
         }
 
-        function updateUI(wave, wind) {
-            const waveEl = document.getElementById('waveHeight');
-            const windEl = document.getElementById('windSpeed');
-            const statusBox = document.getElementById('statusBox');
-            const statusTitle = document.getElementById('statusTitle');
-            const comment = document.getElementById('managerComment');
+        function analyzeForecast(items) {
+            let dailyWeather = {};
+            items.forEach(item => {
+                const fDate = item.fcstDate;
+                if (!dailyWeather[fDate]) dailyWeather[fDate] = { maxWave: 0 };
+                if (item.category === 'WAV') {
+                    const val = parseFloat(item.fcstValue);
+                    if (val > dailyWeather[fDate].maxWave) dailyWeather[fDate].maxWave = val;
+                }
+            });
 
-            // 애니메이션 효과
-            waveEl.innerText = wave;
-            windEl.innerText = wind;
+            let weatherDelay = 0;
+            let forecastHTML = "";
+            let weatherDelayReasons = [];
+            
+            const dates = Object.keys(dailyWeather).sort().slice(0, 3);
+            const dayNames = ["오늘", "내일", "모레"];
 
-            // 판정 로직 (파고 2.5m 이상 or 풍속 12m/s 이상 -> 결항 위험)
-            if (wave >= 2.5 || wind >= 12) {
-                statusBox.className = "status-box status-bad";
-                statusTitle.innerText = "🚨 배 운항 주의 (지연 가능성)";
-                comment.innerHTML = `파도가 ${wave}m로 높고 바람이 거세요!<br>독도문방구 굿즈들이 안전을 위해 잠시 항구에서 대기 중입니다. 배송이 하루 정도 늦어질 수 있어요. 🌊😥`;
+            dates.forEach((date, index) => {
+                const wave = dailyWeather[date].maxWave;
+                let isBad = wave >= DANGER_WAVE_HEIGHT;
+                let icon = isBad ? "🌊" : "🚢";
+                let colorClass = isBad ? "status-danger" : "";
+
+                if (isBad) {
+                    weatherDelay += 1;
+                    weatherDelayReasons.push(dayNames[index]);
+                }
+
+                forecastHTML += `
+                    <div class="forecast-card ${colorClass}">
+                        <div class="f-day">${dayNames[index]}</div>
+                        <div class="f-status">${icon}</div>
+                        <div class="f-wave">최대 ${wave}m</div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('forecastGrid').innerHTML = forecastHTML;
+            calculateFinalDate(weatherDelay, weatherDelayReasons);
+        }
+
+        function calculateFinalDate(weatherDelay, weatherReasons) {
+            const today = new Date();
+            let arrivalDate = new Date(today);
+            
+            // 1. 기본 배송일 + 날씨 지연일 먼저 더하기
+            arrivalDate.setDate(today.getDate() + STANDARD_DELIVERY_DAYS + weatherDelay);
+
+            // 2. 주말 회피 로직 (도착일이 토/일요일이면 월요일로 밀기)
+            let weekendDelay = 0;
+            const dayOfWeek = arrivalDate.getDay(); // 0:일, 6:토
+
+            if (dayOfWeek === 6) { // 토요일 도착 예정이면
+                arrivalDate.setDate(arrivalDate.getDate() + 2); // 월요일로
+                weekendDelay = 2;
+            } else if (dayOfWeek === 0) { // 일요일 도착 예정이면
+                arrivalDate.setDate(arrivalDate.getDate() + 1); // 월요일로
+                weekendDelay = 1;
+            }
+
+            // UI 업데이트
+            const options = { month: 'long', day: 'numeric', weekday: 'long' };
+            const dateStr = arrivalDate.toLocaleDateString('ko-KR', options);
+            
+            document.getElementById('arrivalDate').innerText = dateStr;
+
+            const commentBox = document.getElementById('managerComment');
+            const reasonBox = document.getElementById('delayReason');
+            const box = document.getElementById('deliveryBox');
+
+            // 상황별 메시지 조합
+            let finalReason = "";
+            let managerMsg = "";
+
+            if (weatherDelay === 0 && weekendDelay === 0) {
+                // 날씨 좋고 평일 도착
+                box.className = "delivery-box";
+                finalReason = "기상 맑음! 정시 도착 예상 🚀";
+                managerMsg = "바다가 아주 잔잔하네요! <b>독도문방구</b>의 굿즈들이 빠르게 달려갈 예정입니다. 🛳️📦";
             } else {
-                statusBox.className = "status-box status-good";
-                statusTitle.innerText = "🟢 배 운항 가능 (정상 배송)";
-                comment.innerHTML = `파도가 잔잔하고 날씨가 좋네요!<br>독도문방구 굿즈들이 육지로 출발할 준비를 마쳤습니다. 곧 만나요! 🛳️📦`;
+                // 뭔가 지연됨 (날씨 or 주말)
+                box.className = "delivery-box delayed"; // 주황색 경고
+                let reasons = [];
+                if (weatherDelay > 0) reasons.push(`높은 파도(${weatherReasons.join(',')})`);
+                if (weekendDelay > 0) reasons.push("주말 휴무");
+
+                finalReason = `⚠️ ${reasons.join(" + ")}로 인해 지연 예상`;
+                
+                if (weatherDelay > 0) {
+                    managerMsg = `현재 <b>${weatherReasons.join(', ')}</b> 파도가 높아서 배가 뜨기 힘들어요. 🌊<br>안전하게 보내드리기 위해 조금만 더 기다려주세요! (주말 포함 시 더 늦어질 수 있어요)`;
+                } else {
+                    managerMsg = `날씨는 좋지만 <b>도착 예정일이 주말</b>이라 택배사 휴무로 월요일에 도착할 것 같아요! 🚚💨`;
+                }
             }
+            
+            reasonBox.innerText = finalReason;
+            commentBox.innerHTML = managerMsg;
         }
 
-        // 시작 시 자동 실행
         fetchWeather();
     </script>
 </body>
