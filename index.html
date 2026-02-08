@@ -28,16 +28,18 @@
         h1 { color: #38bdf8; margin-bottom: 5px; font-size: 1.6rem; }
         .subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 25px; }
         
+        /* 버튼과 날짜 입력창을 묶는 스타일 */
         .input-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             background: #334155;
-            padding: 10px;
-            border-radius: 10px;
+            padding: 10px 15px;
+            border-radius: 12px;
             display: inline-flex;
             align-items: center;
             gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
-        .input-label { color: #cbd5e1; font-size: 0.9rem; }
+        .input-label { color: #cbd5e1; font-size: 0.95rem; font-weight: bold;}
         input[type="date"] {
             background: #1e293b;
             border: 1px solid #475569;
@@ -52,6 +54,22 @@
             filter: invert(1);
             cursor: pointer;
         }
+        
+        /* 새로 추가된 확인 버튼 스타일 */
+        .check-btn {
+            background-color: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .check-btn:hover {
+            background-color: #0ea5e9;
+        }
 
         .delivery-box {
             background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
@@ -64,6 +82,9 @@
         .delivery-box.delayed {
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+        .delivery-box.error {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
         }
 
         .delivery-label { font-size: 1rem; color: #e0f2fe; margin-bottom: 5px; }
@@ -113,28 +134,29 @@
         <p class="subtitle">주문 마감(14시)과 날씨를 모두 고려합니다</p>
 
         <div class="input-group">
-            <span class="input-label">주문 날짜:</span>
+            <span class="input-label">주문 날짜</span>
             <input type="date" id="orderDate">
+            <button class="check-btn" onclick="calculateDelivery()">확인</button>
         </div>
 
         <div id="deliveryBox" class="delivery-box">
             <div class="delivery-label">예상 도착일은?</div>
-            <div id="arrivalDate" class="delivery-date">계산 중...</div>
-            <div id="delayReason" class="delivery-note">날씨 정보를 불러오고 있습니다 📡</div>
+            <div id="arrivalDate" class="delivery-date">날짜를 선택하세요</div>
+            <div id="delayReason" class="delivery-note">위 날짜를 선택하고 '확인'을 눌러주세요 👆</div>
         </div>
 
         <div class="forecast-grid" id="forecastGrid"></div>
 
         <div class="message-box">
             <strong>📢 점장님의 코멘트:</strong><br>
-            <span id="managerComment">울릉도 바다 날씨를 확인하고 있어요. 잠시만 기다려주세요!</span>
+            <span id="managerComment">어서오세요! 배송 날짜를 확인해 드릴게요.</span>
         </div>
     </div>
 
     <script>
-        // ▼▼▼ 방금 찾은 '진짜 키'를 넣었습니다! ▼▼▼
+        // ▼ 아까 찾으신 그 키를 넣었습니다 ▼
         const API_KEY = "8bcfc7f276c871e617e932d9a9bcced7bcdff2df7db491ddca0990e794a712ba"; 
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         const STANDARD_DELIVERY_DAYS = 3; 
         const DANGER_WAVE_HEIGHT = 2.5;
@@ -146,9 +168,6 @@
             const offset = today.getTimezoneOffset() * 60000;
             const dateOffset = new Date(today.getTime() - offset);
             document.getElementById('orderDate').value = dateOffset.toISOString().split('T')[0];
-            
-            fetchWeather();
-            document.getElementById('orderDate').addEventListener('change', calculateDelivery);
         };
 
         function getBaseTime() {
@@ -169,14 +188,47 @@
             return { date: baseDate, time: baseTime.toString().padStart(2, '0') + "00" };
         }
 
+        async function calculateDelivery() {
+            const inputDateStr = document.getElementById('orderDate').value;
+            if (!inputDateStr) {
+                alert("날짜를 먼저 선택해주세요!");
+                return;
+            }
+
+            // 로딩 표시
+            document.getElementById('arrivalDate').innerText = "계산 중...";
+            document.getElementById('delayReason').innerText = "기상청에 물어보는 중입니다...📡";
+            document.getElementById('managerComment').innerText = "잠시만 기다려주세요!";
+            document.getElementById('deliveryBox').className = "delivery-box";
+
+            // 날씨 데이터가 없으면 가져오기
+            if (Object.keys(globalWeatherData).length === 0) {
+                await fetchWeather();
+            } else {
+                // 이미 데이터가 있으면 바로 계산
+                performCalculation();
+            }
+        }
+
         async function fetchWeather() {
             const { date, time } = getBaseTime();
-            // JSON 데이터 요청
+            // ★ 중요: https로 요청 (보안 문제 해결 시도)
             const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${API_KEY}&pageNo=1&numOfRows=500&dataType=JSON&base_date=${date}&base_time=${time}&nx=102&ny=115`;
 
             try {
                 const response = await fetch(url);
-                const data = await response.json(); // 여기서 에러나면 키 문제임
+                
+                if (!response.ok) {
+                    throw new Error(`네트워크 오류 (${response.status})`);
+                }
+
+                const data = await response.json();
+                
+                // 에러 체크: 기상청에서 에러 메시지를 보낸 경우
+                if (data.response.header.resultCode !== '00') {
+                    throw new Error(`기상청 응답 오류: ${data.response.header.resultMsg}`);
+                }
+
                 const items = data.response.body.items.item;
                 
                 globalWeatherData = {};
@@ -190,13 +242,101 @@
                 });
 
                 renderForecastCards();
-                calculateDelivery();
+                performCalculation(); // 데이터 가져오기 성공 후 계산 실행
 
             } catch (error) {
                 console.error(error);
-                // 혹시라도 에러가 나면 1시간 대기 안내
-                document.getElementById('managerComment').innerText = "⚠️ 아직 기상청 승인 처리 중입니다! 1시간 뒤에 다시 접속해보세요. (키는 정확합니다!)";
-                document.getElementById('arrivalDate').innerText = "승인 대기 중";
+                // 화면에 에러 내용을 그대로 보여줌 (디버깅용)
+                document.getElementById('deliveryBox').className = "delivery-box error";
+                document.getElementById('arrivalDate').innerText = "오류 발생";
+                document.getElementById('delayReason').innerText = "날씨 정보를 가져오지 못했어요.";
+                document.getElementById('managerComment').innerHTML = `⚠️ <b>오류 내용:</b> ${error.message}<br>(키가 올바르더라도 깃허브 보안 정책 문제일 수 있습니다.)`;
+            }
+        }
+
+        function performCalculation() {
+            const inputDateStr = document.getElementById('orderDate').value;
+            const orderDate = new Date(inputDateStr);
+            let checkDate = new Date(orderDate);
+            
+            const now = new Date();
+            const isToday = orderDate.toDateString() === now.toDateString();
+            let cutoffDelay = 0;
+
+            if (isToday && now.getHours() >= CUTOFF_HOUR) {
+                cutoffDelay = 1;
+                checkDate.setDate(checkDate.getDate() + 1);
+            }
+
+            let weatherDelay = 0;
+            let weatherReasons = [];
+
+            // 3일치 조회
+            for (let i = 0; i < 3; i++) {
+                const year = checkDate.getFullYear();
+                const month = String(checkDate.getMonth() + 1).padStart(2, '0');
+                const day = String(checkDate.getDate()).padStart(2, '0');
+                const checkDateStr = `${year}${month}${day}`;
+
+                // 카드 활성화 초기화
+                const allCards = document.querySelectorAll('.forecast-card');
+                allCards.forEach(c => c.classList.remove('active'));
+
+                if (globalWeatherData[checkDateStr]) {
+                    const wave = globalWeatherData[checkDateStr].maxWave;
+                    const card = document.getElementById(`card-${checkDateStr}`);
+                    if(card) card.classList.add('active');
+
+                    if (wave >= DANGER_WAVE_HEIGHT) {
+                        weatherDelay++;
+                        weatherReasons.push(`${month}/${day} 파도`);
+                    }
+                }
+                checkDate.setDate(checkDate.getDate() + 1);
+            }
+
+            let arrivalDate = new Date(orderDate);
+            arrivalDate.setDate(orderDate.getDate() + STANDARD_DELIVERY_DAYS + cutoffDelay + weatherDelay);
+
+            let weekendDelay = 0;
+            const dayOfWeek = arrivalDate.getDay(); 
+
+            if (dayOfWeek === 6) { 
+                arrivalDate.setDate(arrivalDate.getDate() + 2);
+                weekendDelay = 2;
+            } else if (dayOfWeek === 0) { 
+                arrivalDate.setDate(arrivalDate.getDate() + 1);
+                weekendDelay = 1;
+            }
+
+            const options = { month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('arrivalDate').innerText = arrivalDate.toLocaleDateString('ko-KR', options) + " 도착";
+
+            const commentBox = document.getElementById('managerComment');
+            const reasonBox = document.getElementById('delayReason');
+            const box = document.getElementById('deliveryBox');
+
+            let reasons = [];
+            if (cutoffDelay > 0) reasons.push("오후 마감");
+            if (weatherDelay > 0) reasons.push("높은 파도");
+            if (weekendDelay > 0) reasons.push("주말 휴무");
+
+            if (reasons.length === 0) {
+                box.className = "delivery-box";
+                reasonBox.innerText = "모든 조건이 완벽해요! 정시 도착 예상 🚀";
+                commentBox.innerHTML = "오후 2시 이전에 주문하셨군요! <b>독도문방구</b> 굿즈가 가장 빠르게 도착할 것 같아요. 🛳️📦";
+            } else {
+                box.className = "delivery-box delayed";
+                reasonBox.innerText = `⚠️ ${reasons.join(" + ")}로 지연 예상`;
+                
+                if (cutoffDelay > 0) {
+                    managerMsg = `오후 2시가 넘어서 <b>오늘 발송은 마감</b>되었어요! 내일 발송될 예정입니다. 🚛`;
+                } else if (weatherDelay > 0) {
+                    managerMsg = `파도가 높아서 배가 뜨기 힘들어요. 🌊 안전을 위해 배송이 조금 늦어질 수 있습니다.`;
+                } else {
+                    managerMsg = `날씨는 좋지만 <b>도착일이 주말</b>이라 월요일에 받아보실 수 있을 거예요!`;
+                }
+                commentBox.innerHTML = managerMsg;
             }
         }
 
@@ -208,3 +348,19 @@
             dates.forEach((date, index) => {
                 const wave = globalWeatherData[date].maxWave;
                 let isBad = wave >= DANGER_WAVE_HEIGHT;
+                let icon = isBad ? "🌊" : "🚢";
+                let colorClass = isBad ? "status-danger" : "";
+
+                forecastHTML += `
+                    <div class="forecast-card ${colorClass}" id="card-${date}">
+                        <div class="f-day">${dayNames[index]}</div>
+                        <div class="f-status">${icon}</div>
+                        <div class="f-wave">최대 ${wave}m</div>
+                    </div>
+                `;
+            });
+            document.getElementById('forecastGrid').innerHTML = forecastHTML;
+        }
+    </script>
+</body>
+</html>
