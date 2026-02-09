@@ -8,7 +8,7 @@
     <meta name="description" content="울릉도 현지 날씨와 배편을 분석하여 정확한 도착 예정일을 알려드립니다.">
     <meta property="og:title" content="독도문방구 배송 예측 시스템">
     <meta property="og:description" content="지금 주문하면 언제 도착할까요? 실시간 파고와 배편을 분석해 드립니다.">
-    <meta property="og:image" content="https://your-domain.com/images/thumbnail.jpg">
+    <meta property="og:image" content="https://laslhr3942.github.io/dokdo/thumbnail.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -64,7 +64,7 @@
                 <h2 id="arrivalDateText" class="text-3xl font-black text-yellow-400 mb-4"></h2>
                 
                 <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 text-left space-y-4">
-                     <div class="flex items-center">
+                    <div class="flex items-center">
                         <div class="w-8 text-center text-xl">🛒</div>
                         <div>
                             <p class="text-xs text-slate-500">주문 접수</p>
@@ -79,8 +79,7 @@
                         <div>
                             <p class="text-xs text-slate-500">울릉도 출항 (배 뜨는 날)</p>
                             <p id="step2_text" class="font-bold text-blue-300">-</p>
-                            <p id="weather_warning" class="text-xs text-red-400 mt-2 bg-red-900/20 p-2 rounded border border-red-900/50 hidden leading-relaxed">
-                                </p>
+                            <p id="weather_warning" class="text-xs text-red-400 mt-2 bg-red-900/20 p-2 rounded border border-red-900/50 hidden leading-relaxed"></p>
                         </div>
                     </div>
 
@@ -104,24 +103,23 @@
 
         <div class="bg-slate-900/50 p-3 text-center border-t border-slate-700/50">
             <p class="text-slate-500 text-[10px] font-medium tracking-wider uppercase">
-                Designed by <span class="text-slate-400">슈림컴퍼니_26</span>
+                Designed by <span class="text-slate-400">슈림컴퍼니_26년</span>
             </p>
         </div>
-
     </div>
 
     <script>
-        // --- [설정 및 유틸리티] ---
-        const dateInput = document.getElementById('orderDate');
-        const today = new Date();
-        
-        // 포맷 함수 (YYYY. M. D (요일))
+        // --- 유틸리티 함수 (오류 방지를 위해 최상단 선언) ---
         function formatDateFull(date) {
             const days = ['일','월','화','수','목','금','토'];
             return `${date.getFullYear()}. ${date.getMonth()+1}. ${date.getDate()} (${days[date.getDay()]})`;
         }
 
-        // 날짜 제한 (오늘 ~ 모레)
+        // --- 초기화 로직 ---
+        const dateInput = document.getElementById('orderDate');
+        const today = new Date();
+        
+        // 날짜 제한 설정 (오늘 ~ 모레)
         function setDateLimits() {
             const offset = today.getTimezoneOffset() * 60000;
             const localDate = new Date(today.getTime() - offset);
@@ -129,15 +127,20 @@
             
             const maxDate = new Date(today);
             maxDate.setDate(today.getDate() + 2);
-            const maxStr = new Date(maxDate.getTime() - offset).toISOString().split('T')[0];
+            // 모바일 호환성을 위해 단순화된 날짜 계산
+            const maxStr = maxDate.toISOString().split('T')[0];
 
-            dateInput.min = minStr;
-            dateInput.max = maxStr;
-            dateInput.value = minStr;
+            if(dateInput) {
+                dateInput.min = minStr;
+                dateInput.max = maxStr;
+                dateInput.value = minStr;
+            }
         }
+        
+        // 페이지 로드 즉시 실행
         setDateLimits();
 
-        // UI 버튼 동작
+        // --- UI 버튼 동작 ---
         function setOrderTime(hour) {
             document.getElementById('selectedHour').value = hour;
             const btnBefore = document.getElementById('timeBefore');
@@ -149,4 +152,91 @@
                 btnAfter.className = "time-btn bg-slate-700 text-slate-400 py-3 rounded-lg font-bold border-2 border-transparent hover:bg-slate-600 transition-all";
                 btnAfter.querySelector('span').classList.replace("text-blue-100", "text-slate-500");
             } else {
-                btnBefore.className = "time-btn bg-slate-700 text-slate-400 py-3 rounded-lg font-bold border-
+                btnBefore.className = "time-btn bg-slate-700 text-slate-400 py-3 rounded-lg font-bold border-2 border-transparent hover:bg-slate-600 transition-all";
+                btnBefore.querySelector('span').classList.replace("text-blue-100", "text-slate-500");
+                btnAfter.className = "time-btn bg-blue-600 text-white py-3 rounded-lg font-bold border-2 border-transparent transition-all";
+                btnAfter.querySelector('span').classList.replace("text-slate-500", "text-blue-100");
+            }
+        }
+
+        // --- 핵심 계산 로직 ---
+        function getVirtualWeather(date) {
+            const day = date.getDate();
+            // 테스트: 10일, 20일은 결항 시뮬레이션
+            if (day === 10 || day === 20) return { isBad: true }; 
+            return { isBad: false }; 
+        }
+
+        function calculateShipping() {
+            const dateStr = dateInput.value;
+            const hour = parseInt(document.getElementById('selectedHour').value);
+            
+            if (!dateStr) { alert("날짜를 선택해주세요."); return; }
+
+            // 1. 초기 주문 날짜 설정 (브라우저 호환성 강화)
+            let currentDate = new Date(dateStr);
+            currentDate.setHours(hour);
+
+            if (isNaN(currentDate.getTime())) {
+                alert("날짜 형식이 올바르지 않습니다.");
+                return;
+            }
+
+            // 주문 접수일 표시 (풀 포맷)
+            const initialOrderDateStr = formatDateFull(currentDate);
+
+            // 2. 주문 마감 체크 (10시)
+            const SHIPPING_DAYS = [2, 4, 6]; // 화(2), 목(4), 토(6)
+            if (SHIPPING_DAYS.includes(currentDate.getDay()) && hour >= 10) {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // 3. 배송일 찾기 Loop (무한루프 방지 및 안전 로직)
+            let delayedDateText = ""; 
+            let attempts = 0;
+            
+            while (attempts < 14) {
+                const day = currentDate.getDay();
+                
+                // 배송 요일(화/목/토) 체크
+                if (SHIPPING_DAYS.includes(day)) {
+                    // 날씨 체크
+                    const weather = getVirtualWeather(currentDate);
+                    if (weather.isBad) {
+                        console.log("결항: " + formatDateFull(currentDate));
+                        delayedDateText = formatDateFull(currentDate); 
+                        currentDate.setDate(currentDate.getDate() + 1); 
+                    } else {
+                        break; // 성공!
+                    }
+                } else {
+                    // 배송 요일 아님 -> 다음날로
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                attempts++;
+            }
+
+            // 4. 도착일 = 출항일 + 2일
+            const shipDate = new Date(currentDate);
+            const arrivalDate = new Date(shipDate);
+            arrivalDate.setDate(arrivalDate.getDate() + 2);
+
+            // 5. 결과 화면 출력
+            document.getElementById('resultArea').classList.remove('hidden');
+            
+            document.getElementById('step1_text').innerText = initialOrderDateStr;
+            document.getElementById('step2_text').innerText = formatDateFull(shipDate);
+            document.getElementById('step3_text').innerText = formatDateFull(arrivalDate);
+            document.getElementById('arrivalDateText').innerText = formatDateFull(arrivalDate);
+
+            const warnBox = document.getElementById('weather_warning');
+            if (delayedDateText) {
+                warnBox.innerText = `⚠️ 기상청 예보 결과 ${delayedDateText} 배편은 높은 파고로 결항될 가능성이 높습니다.`;
+                warnBox.classList.remove('hidden');
+            } else {
+                warnBox.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
